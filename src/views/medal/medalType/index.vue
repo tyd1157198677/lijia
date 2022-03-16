@@ -1,0 +1,250 @@
+<template>
+  <div class="app-container">
+    <el-form
+      class="formClass"
+      :model="queryParams"
+      ref="queryForm"
+      :inline="true"
+      v-show="showSearch"
+    >
+      <el-row :gutter="10" class="mb16">
+        <el-col :span="1.5">
+          <el-button type="success" plain icon="el-icon-plus" size="mini" @click="handleAdd">新增</el-button>
+        </el-col>
+      </el-row>
+    </el-form>
+
+    <el-table v-loading="loading" :data="dataList" @selection-change="handleSelectionChange">
+      <el-table-column type="selection" width="55" align="center" />
+      <el-table-column label="勋章编码" align="center" prop="dictCode" />
+      <el-table-column label="勋章类型" align="center" prop="dictLabel" />
+      <el-table-column label="类型ID" align="center" prop="dictValue" />
+      <el-table-column label="勋章类型排序" align="center" prop="dictSort" />
+
+      <el-table-column label="备注" align="center" prop="remark" :show-overflow-tooltip="true" />
+      <el-table-column label="创建时间" align="center" prop="createTime" width="180">
+        <template slot-scope="scope">
+          <span>{{ parseTime(scope.row.createTime) }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
+        <template slot-scope="scope">
+          <el-button type="text" icon="el-icon-edit" @click="handleUpdate(scope.row)">修改</el-button>
+          <el-button type="text" icon="el-icon-delete" @click="handleDelete(scope.row)">删除</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <pagination
+      v-show="total > 0"
+      :total="total"
+      :page.sync="queryParams.pageNum"
+      :limit.sync="queryParams.pageSize"
+      @pagination="getList"
+    />
+
+    <!-- 添加或修改参数配置对话框 -->
+    <el-dialog :title="title" :visible.sync="open" width="500px" append-to-body>
+      <el-form ref="form" :model="form" :rules="rules" label-width="80px">
+        <el-form-item label="勋章名称" prop="dictLabel">
+          <el-input v-model="form.dictLabel" placeholder="请输入勋章类型名称" />
+        </el-form-item>
+        <el-form-item label="勋章ID" prop="dictValue">
+          <el-input v-model="form.dictValue" placeholder="请输入勋章类型ID" />
+        </el-form-item>
+
+        <el-form-item label="显示排序" prop="dictSort">
+          <el-input-number v-model="form.dictSort" controls-position="right" :min="0" />
+        </el-form-item>
+
+        <el-form-item label="备注" prop="remark">
+          <el-input v-model="form.remark" type="textarea" placeholder="请输入内容"></el-input>
+        </el-form-item>
+      </el-form>
+      <div slot="footer" class="dialog-footer">
+        <el-button type="primary" @click="submitForm">确 定</el-button>
+        <el-button @click="cancel">取 消</el-button>
+      </div>
+    </el-dialog>
+  </div>
+</template>
+
+<script>
+import {
+  listData,
+  getData,
+  delData,
+  addData,
+  updateData,
+} from '@/api/system/dict/data'
+import { listType, getType } from '@/api/system/dict/type'
+
+export default {
+  name: 'medalType',
+  data() {
+    return {
+      // 遮罩层
+      loading: true,
+      // 选中数组
+      ids: [],
+      // 非单个禁用
+      single: true,
+      // 非多个禁用
+      multiple: true,
+      // 显示搜索条件
+      showSearch: true,
+      // 总条数
+      total: 0,
+      // 勋章类型表格数据
+      dataList: [],
+      // 默认勋章类型类型
+      defaultDictType: '',
+      // 弹出层标题
+      title: '',
+      // 是否显示弹出层
+      open: false,
+      // 数据标签回显样式
+      listClassOptions: [
+        {
+          value: 'default',
+          label: '默认',
+        },
+        {
+          value: 'primary',
+          label: '主要',
+        },
+        {
+          value: 'success',
+          label: '成功',
+        },
+        {
+          value: 'info',
+          label: '信息',
+        },
+        {
+          value: 'warning',
+          label: '警告',
+        },
+        {
+          value: 'danger',
+          label: '危险',
+        },
+      ],
+      // 类型数据勋章类型
+      typeOptions: [],
+      // 查询参数
+      queryParams: {
+        pageNum: 1,
+        pageSize: 20,
+      },
+      // 表单参数
+      form: {},
+      // 表单校验
+      rules: {
+        dictLabel: [
+          { required: true, message: '勋章名称不能为空', trigger: 'blur' },
+        ],
+        dictValue: [
+          { required: true, message: '勋章ID不能为空', trigger: 'blur' },
+        ],
+        dictSort: [
+          { required: true, message: '勋章排序不能为空', trigger: 'blur' },
+        ],
+      },
+    }
+  },
+  created() {
+    const dictId = 115
+    this.getType(dictId)
+    this.getTypeList()
+  },
+  methods: {
+    /** 查询勋章类型类型详细 */
+    getType(dictId) {
+      getType(dictId).then((response) => {
+        this.queryParams.dictType = response.data.dictType
+        this.defaultDictType = response.data.dictType
+        this.getList()
+      })
+    },
+    /** 查询勋章类型类型列表 */
+    getTypeList() {
+      listType().then((response) => {
+        this.typeOptions = response.rows
+      })
+    },
+    /** 查询勋章类型数据列表 */
+    getList() {
+      this.loading = true
+      listData(this.queryParams).then((response) => {
+        this.dataList = response.rows
+        this.total = response.total
+        this.loading = false
+      })
+    },
+    // 取消按钮
+    cancel() {
+      this.open = false
+    },
+
+    /** 新增按钮操作 */
+    handleAdd() {
+      this.open = true
+      this.title = '添加勋章类型数据'
+      this.form.dictType = this.queryParams.dictType
+    },
+    // 多选框选中数据
+    handleSelectionChange(selection) {
+      this.ids = selection.map((item) => item.dictCode)
+      this.single = selection.length != 1
+      this.multiple = !selection.length
+    },
+    /** 修改按钮操作 */
+    handleUpdate(row) {
+      const dictCode = row.dictCode || this.ids
+      getData(dictCode).then((response) => {
+        this.form = response.data
+        this.open = true
+        this.title = '修改勋章类型数据'
+      })
+    },
+    /** 提交按钮 */
+    submitForm: function () {
+      this.$refs['form'].validate((valid) => {
+        if (valid) {
+          if (this.form.dictCode != undefined) {
+            updateData(this.form).then((response) => {
+              this.msgSuccess('修改成功')
+              this.open = false
+              this.getList()
+            })
+          } else {
+            addData(this.form).then((response) => {
+              this.msgSuccess('新增成功')
+              this.open = false
+              this.getList()
+            })
+          }
+        }
+      })
+    },
+    /** 删除按钮操作 */
+    handleDelete(row) {
+      const dictCodes = row.dictCode || this.ids
+      this.$confirm('是否确认删除该勋章类型？', '警告', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      })
+        .then(function () {
+          return delData(dictCodes)
+        })
+        .then(() => {
+          this.getList()
+          this.msgSuccess('删除成功')
+        })
+        .catch(() => {})
+    },
+  },
+}
+</script>
